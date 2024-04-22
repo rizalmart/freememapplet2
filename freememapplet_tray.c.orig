@@ -1,0 +1,198 @@
+/*BK based on a simple systray applet example by Rodrigo De Castro, 2007*/
+/*sys tray applet to monitor free personal storage space
+  GPL license /usr/share/doc/legal/gpl-2.0.txt.
+  freememapplet_tray is started in /usr/sbin/delayedrun and pfbpanel.
+  2.1: changed from png to included xpm images, passed param not needed.
+  2.2: 100517: always read free space in save file, not RAM space.
+  2.2: pet pkg has moved executable to /root/Startup.
+  2.3: 100820: 01micko: PUPMODE==2 fix.
+  2.3.1: BK 110805 testing with PUPMODE=2, needs fix, there is no /dev/root.
+   (puppy has a fixed df that returns actual partition instead of /dev/root)
+  2.4 (20120519): rodin.s: added gettext.
+  */
+
+#include <string.h>
+#include <libintl.h>
+#include <locale.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <unistd.h>
+#include <gtk/gtk.h>
+#include <gdk/gdk.h>
+#include <gdk/gdkkeysyms.h>
+#include <glib/gstdio.h>
+
+
+#define _(STRING)    gettext(STRING)
+
+GtkStatusIcon *tray_icon;
+unsigned int interval = 10000; /*update interval in milliseconds*/
+FILE *fp;
+char meminfo[16];
+char *memfree;
+char *memtotal;
+int mylength;
+char memdisplayfree[8];
+char memdisplaytotal[8];
+int sizefree;
+int sizefreeprev = 0;
+int sizetotal;
+char memdisplaylong[64];
+unsigned int pupmode;
+unsigned int ptoffset;
+char *ptsecond;
+int percentfree;
+
+GdkPixbuf *grey_pixbuf;
+GdkPixbuf *critical_pixbuf;
+GdkPixbuf *ok_pixbuf;
+GdkPixbuf *good_pixbuf;
+GdkPixbuf *excellent_pixbuf;
+
+GError *gerror = NULL;
+
+gboolean Update(gpointer ptr);
+
+gboolean Update(gpointer ptr) {
+	
+	/* /sbin/pup_event_frontend_d writes to this file, but deprecated...
+    if((fp = fopen("/tmp/pup_event_sizefreem","r")) == NULL) { return; }
+    fgets(memfree,sizeof memfree,fp);
+    fclose(fp);*/
+    
+    //read free personal storage...
+    //would prefer to do this entirely in C code...
+    /*100517 always read free space in save file, not RAM space...*/
+    /*if (pupmode!=6 && pupmode!=12) {fp = (FILE *)popen("df -m | grep ' /$' | tr -s ' ' | cut -f 2,4 -d ' '","r");}
+    else {fp = (FILE *)popen("df -m | grep ' /initrd/pup_rw$' | tr -s ' ' | cut -f 2,4 -d ' '","r");}*/
+    if (pupmode==3) fp = (FILE *)popen("df -m | grep ' /initrd/pup_ro1$' | tr -s ' ' | cut -f 2,4 -d ' '","r");
+    else if (pupmode==7) fp = (FILE *)popen("df -m | grep ' /initrd/pup_ro1$' | tr -s ' ' | cut -f 2,4 -d ' '","r");
+    else if (pupmode==13) fp = (FILE *)popen("df -m | grep ' /initrd/pup_ro1$' | tr -s ' ' | cut -f 2,4 -d ' '","r");
+// BK 110805 testing with PUPMODE=2, needs fix, there is no /dev/root...
+//    else if (pupmode==2) fp = (FILE *)popen("df -m |  grep '/dev/root' | tr -s ' '| cut -f 2,4 -d ' '","r"); /*v2.3 01micko*/
+    else if (pupmode==2) fp = (FILE *)popen("df -m |  grep ' /$' | tr -s ' '| cut -f 2,4 -d ' '","r"); /*v2.3 01micko*/
+    else fp = (FILE *)popen("df -m | grep ' /initrd/pup_rw$' | tr -s ' ' | cut -f 2,4 -d ' '","r");
+    
+    fgets(meminfo,sizeof meminfo,fp);
+    pclose(fp);
+    
+    //separate out max and available space...
+    ptsecond = strchr(meminfo,' ');
+    ptoffset=ptsecond - meminfo;
+    meminfo[ptoffset] = 0;
+    memtotal=&meminfo[0];
+    memfree=&meminfo[ptoffset+1];
+
+    //need them in both string and integer...
+    mylength=strlen(memfree);
+    mylength=mylength-1;
+    memfree[mylength]=0; //seems to have newline char on end.
+    strcpy(memdisplayfree,memfree);
+    mylength=strlen(memfree);
+    sizefree=atoi(memfree);
+    strcpy(memdisplaytotal,memtotal);
+    mylength=strlen(memtotal);
+    sizetotal=atoi(memtotal);
+    
+    if (sizefreeprev == sizefree) return; //unchanged.
+    sizefreeprev=sizefree;
+    
+    //format display...
+    if ( sizefree < 1000 ) strcat(memdisplayfree,"M");
+    else if (sizefree >= 10240) sprintf(memdisplayfree, "%dG", (sizefree/1024)); //>=10G
+    else sprintf(memdisplayfree, "%.1fG", (float)(sizefree/1024.0));
+    if ( sizetotal < 1000 ) strcat(memdisplaytotal,"M");
+    else if (sizetotal >= 10240) sprintf(memdisplaytotal, "%dG", (sizetotal/1024)); //>=10G
+    else sprintf(memdisplaytotal, "%.1fG", (float)(sizetotal/1024.0));
+    
+    //update tooltip...
+    memdisplaylong[0]=0;
+    strcat (memdisplaylong,memdisplaytotal);
+    strcat (memdisplaylong,_(" personal storage, free space "));
+    strcat (memdisplaylong,memdisplayfree);
+    gtk_status_icon_set_tooltip(tray_icon, memdisplaylong);
+
+    //update icon... (sizefree,sizetotal are in MB)
+    if (gtk_status_icon_get_blinking(tray_icon)==TRUE) gtk_status_icon_set_blinking(tray_icon,FALSE);
+    percentfree=(sizefree*100)/sizetotal;
+    if (sizefree < 20) {
+        gtk_status_icon_set_from_pixbuf(tray_icon,critical_pixbuf);
+        gtk_status_icon_set_blinking(tray_icon,TRUE);
+    }
+    else if (sizefree < 50) {
+        gtk_status_icon_set_from_pixbuf(tray_icon,critical_pixbuf);
+    }
+    else if (percentfree < 20) {
+        gtk_status_icon_set_from_pixbuf(tray_icon,critical_pixbuf);
+    }
+    else if (percentfree < 45) {
+        gtk_status_icon_set_from_pixbuf(tray_icon,ok_pixbuf);
+	}
+    else if (percentfree < 70) {
+        gtk_status_icon_set_from_pixbuf(tray_icon,good_pixbuf);
+	}
+    else {
+        gtk_status_icon_set_from_pixbuf(tray_icon,excellent_pixbuf);
+	}
+}
+
+void tray_icon_on_click(GtkStatusIcon *status_icon, gpointer user_data)
+{
+    //printf("Clicked on tray icon\n");
+    system("partview &");
+}
+
+void tray_icon_on_menu(GtkStatusIcon *status_icon, guint button, guint activate_time, gpointer user_data)
+{
+    printf("Popup menu\n");
+}
+
+static GtkStatusIcon *create_tray_icon() {
+
+    tray_icon = gtk_status_icon_new();
+    g_signal_connect(G_OBJECT(tray_icon), "activate", G_CALLBACK(tray_icon_on_click), NULL);
+    g_signal_connect(G_OBJECT(tray_icon), "popup-menu", G_CALLBACK(tray_icon_on_menu), NULL);
+
+//    gtk_status_icon_set_from_file(tray_icon, "/usr/local/lib/X11/mini-icons/level-grey.png");
+//    icon_pixbuf=gdk_pixbuf_new_from_xpm_data((const char**)grey_xpm);
+//    gtk_status_icon_set_from_pixbuf(tray_icon,icon_pixbuf);
+	grey_pixbuf=gdk_pixbuf_new_from_file("/usr/share/pixmaps/puppy/container_0.svg",&gerror);
+    critical_pixbuf=gdk_pixbuf_new_from_file("/usr/share/pixmaps/puppy/container_1.svg",&gerror);
+    ok_pixbuf=gdk_pixbuf_new_from_file("/usr/share/pixmaps/puppy/container_2.svg",&gerror);
+    good_pixbuf=gdk_pixbuf_new_from_file("/usr/share/pixmaps/puppy/container_3.svg",&gerror);
+    excellent_pixbuf=gdk_pixbuf_new_from_file("/usr/share/pixmaps/puppy/container_4.svg",&gerror);
+
+    gtk_status_icon_set_visible(tray_icon, TRUE);
+
+    return tray_icon;
+}
+
+int main(int argc, char **argv) {
+    int len;
+    char strpupmode[8];
+    GtkStatusIcon *tray_icon;
+
+    setlocale( LC_ALL, "" );
+    bindtextdomain( "freememapplet_tray", "/usr/share/locale" );
+    textdomain( "freememapplet_tray" );
+    
+    //if (argc < 2) {printf("Needs PUPMODE passed parameter, aborting\n"); return 1;}
+    //pupmode=atoi(argv[1]);
+    fp=(FILE*)popen("grep '^PUPMODE' /etc/rc.d/PUPSTATE | cut -f 2 -d '='","r");
+    fgets(strpupmode,sizeof strpupmode,fp);
+    pclose(fp);
+    len=strlen(strpupmode);
+    len=len-1; //seems to have newline char on the end.
+    strpupmode[len]=0;
+    pupmode=atoi(strpupmode);
+
+    gtk_init(&argc, &argv);
+    tray_icon = create_tray_icon();
+        
+    gtk_timeout_add(interval, Update, NULL);
+    Update(NULL);
+
+    gtk_main();
+
+    return 0;
+}
