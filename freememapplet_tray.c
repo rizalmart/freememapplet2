@@ -1,3 +1,18 @@
+/*BK based on a simple systray applet example by Rodrigo De Castro, 2007*/
+/*sys tray applet to monitor free personal storage space
+  GPL license /usr/share/doc/legal/gpl-2.0.txt.
+  freememapplet_tray is started in /usr/sbin/delayedrun and pfbpanel.
+  2.1: changed from png to included xpm images, passed param not needed.
+  2.2: 100517: always read free space in save file, not RAM space.
+  2.2: pet pkg has moved executable to /root/Startup.
+  2.3: 100820: 01micko: PUPMODE==2 fix.
+  2.3.1: BK 110805 testing with PUPMODE=2, needs fix, there is no /dev/root.
+   (puppy has a fixed df that returns actual partition instead of /dev/root)
+  2.4 (20120519): rodin.s: added gettext.
+  
+  modified by mistfire
+*/
+
 #include <libintl.h>
 #include <locale.h>
 #include <stdlib.h>
