@@ -38,13 +38,22 @@
 
 AppIndicator *tray_icon;
 GtkWidget *menu;
+GtkWidget *mem_item_total;
+GtkWidget *mem_item_free;
+
 guint interval = 10; /*update interval in seconds*/
 unsigned long long sizetotal;
 unsigned long long sizefree;
 unsigned long long sizefreeprev = 0;
+
 gchar memdisplayfree[MAXCHARNUM];
 gchar memdisplaytotal[MAXCHARNUM];
+
+gchar mnudisplayfree[MAXCHARMSG];
+gchar mnudisplaytotal[MAXCHARMSG];
+
 gchar memdisplaylong[MAXCHARMSG];
+
 gchar *save_layer_dir;
 unsigned int ptoffset;
 int percentfree;
@@ -74,38 +83,60 @@ gboolean Update(gpointer ptr)
 {
     getFileSystemData(save_layer_dir);
 
-    if (sizefreeprev == sizefree)
+    if(sizefreeprev == sizefree){
         return TRUE;
+    }
+        
     sizefreeprev = sizefree;
 
-    if (sizefree < 1000)
+    if(sizefree < 1000){
         g_snprintf(memdisplayfree, MAXCHARNUM, "%lldMiB", sizefree);
-    else if (sizefree >= 10240)
+    }
+    else if(sizefree >= 10240){
         g_snprintf(memdisplayfree, MAXCHARNUM, "%lldGiB", (sizefree / 1024));
-    else
+    }
+    else{
         g_snprintf(memdisplayfree, MAXCHARNUM, "%.1fGiB", (float)(sizefree / 1024.0));
-    if (sizetotal < 1000)
+    }    
+        
+    if (sizetotal < 1000){
         g_snprintf(memdisplaytotal, MAXCHARNUM, "%lldMiB", sizetotal);
-    else if (sizetotal >= 10240)
+    }
+    else if (sizetotal >= 10240){
         g_snprintf(memdisplaytotal, MAXCHARNUM, "%lldGiB", (sizetotal / 1024));
-    else
+    }
+    else{
         g_snprintf(memdisplaytotal, MAXCHARNUM, "%.1fGiB", (float)(sizetotal / 1024.0));
-
-    if (pupSavefile)
+	}
+	
+    if (pupSavefile){
         g_snprintf(memdisplaylong, MAXCHARMSG, "%s %s %s\n%s", memdisplaytotal, STORAGE_MSG, memdisplayfree, RIGHT_MENU);
-    else
+    }
+    else{
         g_snprintf(memdisplaylong, MAXCHARMSG, "%s %s %s", memdisplaytotal, STORAGE_MSG, memdisplayfree);
-
+	}
+	
     percentfree = sizetotal == 0 ? 0 : (sizefree * 100) / sizetotal;
 
-    if (percentfree < 20)
+    if (percentfree < 20){
         app_indicator_set_icon_full(tray_icon, ICON_PATH "/container_1.svg", memdisplaylong);
-    else if (percentfree < 45)
+    }
+    else if (percentfree < 45){
         app_indicator_set_icon_full(tray_icon, ICON_PATH "/container_2.svg", memdisplaylong);
-    else if (percentfree < 70)
+    }
+    else if (percentfree < 70){
         app_indicator_set_icon_full(tray_icon, ICON_PATH "/container_3.svg", memdisplaylong);
-    else
+    }
+    else{
         app_indicator_set_icon_full(tray_icon, ICON_PATH "/container_4.svg", memdisplaylong);
+	}
+
+
+	g_snprintf(mnudisplaytotal, MAXCHARMSG, "Total Space: %s", memdisplaytotal);
+	g_snprintf(mnudisplayfree, MAXCHARMSG, "Free Space: %s", memdisplayfree);
+	
+    gtk_menu_item_set_label(GTK_MENU_ITEM(mem_item_total), mnudisplaytotal);  
+    gtk_menu_item_set_label(GTK_MENU_ITEM(mem_item_free), mnudisplayfree);    
 
     return TRUE;
 }
@@ -123,6 +154,21 @@ void resize_pupsave()
 GtkWidget *create_menu()
 {
     GtkWidget *menu = gtk_menu_new();
+    
+	// Dynamic memory label
+	
+	g_snprintf(mnudisplaytotal, MAXCHARMSG, "Memory Capacity: %s", memdisplaytotal);
+	g_snprintf(mnudisplayfree, MAXCHARMSG, "Free Memory: %s", memdisplayfree);
+	
+	mem_item_total = gtk_menu_item_new_with_label(mnudisplaytotal);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), mem_item_total);
+	
+	mem_item_free = gtk_menu_item_new_with_label(mnudisplayfree);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), mem_item_free);
+
+	// Separator (optional)
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), gtk_separator_menu_item_new());
+    
 
     if (pupSavefile)
     {
