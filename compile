@@ -3,7 +3,7 @@
 rm -f freememapplet_tray
 rm -f freememapplet_tray.pot
 
-gcc -Wall freememapplet_tray.c `pkg-config --cflags --libs appindicator3-0.1 gtk+-3.0` -o freememapplet_tray
+gcc -Wall freememapplet_tray.c `pkg-config --cflags --libs ayatana-appindicator3-0.1 gtk+-3.0` -o freememapplet_tray
 
 xgettext --keyword="_" freememapplet_tray.c  -o freememapplet_tray.pot
 
