@@ -18,7 +18,7 @@
 #include <stdlib.h>
 #include <gtk/gtk.h>
 #include <glib/gstdio.h>
-#include <libappindicator/app-indicator.h>
+#include <libayatana-appindicator/app-indicator.h>
 #include <sys/statfs.h>
 #include <string.h>
 
