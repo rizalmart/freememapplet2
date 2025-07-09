@@ -227,7 +227,8 @@ int main(int argc, char **argv)
                 if (g_strv_length(chunksArray) > 1)
                 {
                     curVal = chunksArray[1];
-                    if ((g_str_has_suffix(curVal, ".2fs")) ||
+                    if ((g_str_has_suffix(curVal, ".bfs")) ||
+			(g_str_has_suffix(curVal, ".2fs")) ||
                         (g_str_has_suffix(curVal, ".3fs")) ||
                         (g_str_has_suffix(curVal, ".4fs")))
                         pupSavefile = TRUE;
