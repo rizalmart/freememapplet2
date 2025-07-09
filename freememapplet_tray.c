@@ -40,21 +40,27 @@ AppIndicator *tray_icon;
 GtkWidget *menu;
 GtkWidget *mem_item_total;
 GtkWidget *mem_item_free;
+GtkWidget *mem_item_type;
 
 guint interval = 10; /*update interval in seconds*/
 unsigned long long sizetotal;
 unsigned long long sizefree;
 unsigned long long sizefreeprev = 0;
 
+
 gchar memdisplayfree[MAXCHARNUM];
 gchar memdisplaytotal[MAXCHARNUM];
 
 gchar mnudisplayfree[MAXCHARMSG];
 gchar mnudisplaytotal[MAXCHARMSG];
+gchar mnudisplaytype[MAXCHARMSG];
+
 
 gchar memdisplaylong[MAXCHARMSG];
 
 gchar *save_layer_dir;
+gchar *save_layer_type;
+
 unsigned int ptoffset;
 int percentfree;
 gboolean pupSavefile = FALSE;
@@ -69,9 +75,9 @@ void getFileSystemData(const char *fln)
     if (retval == 0)
     {
         sizetotal = vfs.f_blocks;
-        sizetotal = (sizetotal * vfs.f_bsize) / 1048576;
+        sizetotal = (sizetotal * vfs.f_bsize) / 1000000;
         sizefree = vfs.f_bavail;
-        sizefree = (sizefree * vfs.f_bsize) / 1048576;
+        sizefree = (sizefree * vfs.f_bsize) / 1000000;
     }
     else
     {
@@ -90,23 +96,23 @@ gboolean Update(gpointer ptr)
     sizefreeprev = sizefree;
 
     if(sizefree < 1000){
-        g_snprintf(memdisplayfree, MAXCHARNUM, "%lldMiB", sizefree);
+        g_snprintf(memdisplayfree, MAXCHARNUM, "%lldMB", sizefree);
     }
-    else if(sizefree >= 10240){
-        g_snprintf(memdisplayfree, MAXCHARNUM, "%lldGiB", (sizefree / 1024));
+    else if(sizefree >= 10000){
+        g_snprintf(memdisplayfree, MAXCHARNUM, "%.0fGB", (float)(sizefree / 1000.0));
     }
     else{
-        g_snprintf(memdisplayfree, MAXCHARNUM, "%.1fGiB", (float)(sizefree / 1024.0));
+        g_snprintf(memdisplayfree, MAXCHARNUM, "%.0fGB", (float)(sizefree / 1000.0));
     }    
         
     if (sizetotal < 1000){
-        g_snprintf(memdisplaytotal, MAXCHARNUM, "%lldMiB", sizetotal);
+        g_snprintf(memdisplaytotal, MAXCHARNUM, "%lldMB", sizetotal);
     }
-    else if (sizetotal >= 10240){
-        g_snprintf(memdisplaytotal, MAXCHARNUM, "%lldGiB", (sizetotal / 1024));
+    else if (sizetotal >= 10000){
+        g_snprintf(memdisplaytotal, MAXCHARNUM, "%.0fGB", (float)(sizetotal / 1000.0));
     }
     else{
-        g_snprintf(memdisplaytotal, MAXCHARNUM, "%.1fGiB", (float)(sizetotal / 1024.0));
+        g_snprintf(memdisplaytotal, MAXCHARNUM, "%.0fGB", (float)(sizetotal / 1000.0));
 	}
 	
     if (pupSavefile){
@@ -131,10 +137,10 @@ gboolean Update(gpointer ptr)
         app_indicator_set_icon_full(tray_icon, ICON_PATH "/container_4.svg", memdisplaylong);
 	}
 
-
+	
 	g_snprintf(mnudisplaytotal, MAXCHARMSG, "Total Space: %s", memdisplaytotal);
 	g_snprintf(mnudisplayfree, MAXCHARMSG, "Free Space: %s", memdisplayfree);
-	
+	 
     gtk_menu_item_set_label(GTK_MENU_ITEM(mem_item_total), mnudisplaytotal);  
     gtk_menu_item_set_label(GTK_MENU_ITEM(mem_item_free), mnudisplayfree);    
 
@@ -156,9 +162,12 @@ GtkWidget *create_menu()
     GtkWidget *menu = gtk_menu_new();
     
 	// Dynamic memory label
-	
+	g_snprintf(mnudisplaytype, MAXCHARMSG, "Storage Type: %s", save_layer_type);
 	g_snprintf(mnudisplaytotal, MAXCHARMSG, "Memory Capacity: %s", memdisplaytotal);
 	g_snprintf(mnudisplayfree, MAXCHARMSG, "Free Memory: %s", memdisplayfree);
+
+	mem_item_type = gtk_menu_item_new_with_label(mnudisplaytype);
+	gtk_menu_shell_append(GTK_MENU_SHELL(menu), mem_item_type);
 	
 	mem_item_total = gtk_menu_item_new_with_label(mnudisplaytotal);
 	gtk_menu_shell_append(GTK_MENU_SHELL(menu), mem_item_total);
@@ -240,6 +249,7 @@ int main(int argc, char **argv)
         if (save_layer_dir == NULL)
         {
             save_layer_dir = g_strdup("/");
+            save_layer_type = g_strdup("Folder");
             haveSaveLayer = TRUE;
         }
         else
@@ -247,9 +257,18 @@ int main(int argc, char **argv)
             if (g_file_test(save_layer_dir, G_FILE_TEST_EXISTS))
             {
                 haveSaveLayer = TRUE;
-            }
+                
+                if(pupSavefile){
+					save_layer_type = g_strdup("File");
+				}
+				else{
+					save_layer_type = g_strdup("Folder");					
+				}
+			
+			}	
             else
             {
+				save_layer_type = g_strdup("RAM"); 
                 g_free(save_layer_dir);
                 save_layer_dir = NULL;
             }
@@ -275,6 +294,7 @@ int main(int argc, char **argv)
         gtk_main();
 
         g_free(save_layer_dir);
+        g_free(save_layer_type);
 
         return 0;
     }
